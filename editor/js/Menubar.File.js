@@ -49,10 +49,11 @@ Menubar.File = function ( editor ) {
 	// Import
 
 	var fileInput = document.createElement( 'input' );
-	fileInput.type = 'file';
+    fileInput.type = 'file';
+    fileInput.multiple = 'multiple';
 	fileInput.addEventListener( 'change', function ( event ) {
 
-		editor.loader.loadFile( fileInput.files[ 0 ] );
+        editor.loader.loadFiles(fileInput.files);
 
 	} );
 

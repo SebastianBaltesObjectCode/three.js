@@ -9,7 +9,82 @@ var Loader = function ( editor ) {
 
 	this.texturePath = '';
 
-	this.loadFile = function ( file ) {
+    var myCache = {};
+
+	/* Helper Function, replacement? */
+    function find(array,testFunction) {
+        for (var i=0;i<array.length;i++) {
+            if (testFunction(array[i])) {
+                return array[i];
+            }
+        }
+        return null;
+    }
+
+    this.loadFiles = function ( files ) {
+
+        THREE.Loader.Handlers.add(/.*/g, {
+
+            load: function( path, callback ) {
+                var filename = path.split( '/' ).pop().toLowerCase();
+
+                if (typeof myCache[filename]!=='undefined') {
+                    return myCache[filename];
+                }
+
+
+                var file = find(files,function(file){
+                    return filename == file.name.toLowerCase();
+                });
+                if (file==null) {
+                    file = find(files,function(file){
+                        return filename.indexOf(file.name.toLowerCase())>=0;
+                    });
+                }
+
+                if (file==null) {
+                    console.log("texture not found: " + path);
+                    myCache[filename] = null;
+                    return null;
+                }
+                if (!(/image/i).test(file.type)) {
+                    console.log("unsupported image file format: " + path + " with mimetype " + file.type);
+                    myCache[filename] = null;
+                    return null;
+                }
+                var texture = new THREE.Texture();
+                myCache[filename] = texture;
+                var reader = new FileReader();
+                reader.onload = function(e) {
+                    var image = new Image();
+                    image.addEventListener("load",function() {
+                        console.log("successfully loaded texture " + file.name, this);
+                        texture.image = this; //THREE.MTLLoader.ensurePowerOfTwo_( this );
+                        texture.needsUpdate = true;
+                        if (callback) {
+                            callback(texture);
+                        }
+                    },false);
+                    image.src=e.target.result;
+                };
+                reader.readAsDataURL(file);
+                return texture;
+            }
+        });
+
+        var countSupported = 0;
+        for (var i=0;i<files.length;i++) {
+            if (scope.loadFile(files[i],files)) {
+                countSupported++;
+            }
+        }
+        if (countSupported==0) {
+            alert( 'No supported file format' );
+        }
+
+    };
+
+    this.loadFile = function ( file, otherFiles ) {
 
 		var filename = file.name;
 		var extension = filename.split( '.' ).pop().toLowerCase();
@@ -273,17 +348,58 @@ var Loader = function ( editor ) {
 
 			case 'obj':
 
-				reader.addEventListener( 'load', function ( event ) {
+                var mtlFile = find(otherFiles,function(file){
+                    return file.name.match(/^.*\.mtl$/i);
+                });
+                if (mtlFile) {
+                    var readerMtl = new FileReader();
+                    readerMtl.addEventListener( 'load', function ( mtlEvent ) {
+                        var mtlText = mtlEvent.target.result;
+                        var readerObj = new FileReader();
+                        readerObj.addEventListener( 'load', function ( objEvent ) {
+                            var objText = objEvent.target.result;
 
-					var contents = event.target.result;
+                            var materialsCreator = new THREE.MTLLoader().parse(mtlText);
+                            materialsCreator.preload();
 
-					var object = new THREE.OBJLoader().parse( contents );
-					object.name = filename;
+                            const objLoader = new THREE.OBJLoader();
+                            objLoader.setMaterials( materialsCreator );
+                            var object = objLoader.parse( objText );
 
-					editor.execute( new AddObjectCommand( object ) );
+                            object.traverse( function ( object ) {
+                                if ( object instanceof THREE.Mesh ) {
+                                    if ( object.material.name ) {
+                                        var material = materialsCreator.create( object.material.name );
+                                        if ( material ) object.material = material;
+                                    }
+                                }
+                            } );
 
-				}, false );
-				reader.readAsText( file );
+                            object.name = filename;
+
+                            editor.addObject( object );
+                            editor.select( object );
+                        }, false );
+                        readerObj.readAsText( file );
+                    }, false );
+                    readerMtl.readAsText( mtlFile );
+
+                } else {
+
+                    reader.addEventListener( 'load', function ( event ) {
+
+                        var contents = event.target.result;
+
+                        var object = new THREE.OBJLoader().parse( contents );
+                        object.name = filename;
+
+                        editor.execute( new AddObjectCommand( object ) );
+
+                    }, false );
+                    reader.readAsText( file );
+
+                }
+
 
 				break;
 
@@ -416,11 +532,13 @@ var Loader = function ( editor ) {
 
 			default:
 
-				alert( 'Unsupported file format (' + extension +  ').' );
+                return false;
 
 				break;
 
 		}
+
+        return true;
 
 	};
 

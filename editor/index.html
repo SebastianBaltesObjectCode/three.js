@@ -25,6 +25,7 @@
 		<script src="../examples/js/loaders/KMZLoader.js"></script>
 		<script src="../examples/js/loaders/MD2Loader.js"></script>
 		<script src="../examples/js/loaders/OBJLoader.js"></script>
+		<script src="../examples/js/loaders/MTLLoader.js"></script>
 		<script src="../examples/js/loaders/PlayCanvasLoader.js"></script>
 		<script src="../examples/js/loaders/PLYLoader.js"></script>
 		<script src="../examples/js/loaders/STLLoader.js"></script>
@@ -279,9 +280,9 @@
 
 				event.preventDefault();
 
-				if ( event.dataTransfer.files.length > 0 ) {
+                if ( event.dataTransfer.files.length > 0 ) {
 
-					editor.loader.loadFile( event.dataTransfer.files[ 0 ] );
+                    editor.loader.loadFiles( event.dataTransfer.files );
 
 				}
 
